@@ -1,0 +1,27 @@
+services:
+  - type: worker
+    name: weather-generator
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python weather_generator.py
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: WEATHER_LOCATION
+        value: Lagos, Nigeria
+      - key: GENERATOR_INTERVAL_SECONDS
+        value: "120"
+      - key: APP_TIMEZONE
+        value: Africa/Lagos
+  - type: web
+    name: weather-streamlit-dashboard
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: WEATHER_LOCATION
+        value: Lagos, Nigeria
+      - key: APP_TIMEZONE
+        value: Africa/Lagos
