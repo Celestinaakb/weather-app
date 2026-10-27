@@ -349,28 +349,4 @@ The architecture should allow these features to be added in future phases withou
 - Compare forecasts against actual observations.
 - Support additional Nigerian locations.
 
-### 15. Instructions to the AI Development Assistant
-
-Act as a senior Python developer and data engineer.
-
-Implement Phase 1 according to this document.
-
-Before coding:
-1. Inspect the existing repository and preserve useful working files.
-2. Identify missing components and dependencies.
-3. Present a concise implementation plan.
-
-During implementation:
-1. Build the database schema and connection layer first.
-2. Implement and test the simulator.
-3. Implement the independent generator.
-4. Implement the Streamlit dashboard.
-5. Add historical browsing, charts, and error handling.
-6. Add tests, dependency definitions, environment examples, and deployment instructions.
-7. Run available tests and fix errors before reporting completion.
-
-Use modular, readable Python with clear function names, type hints where appropriate, parameterised database queries, and secure configuration practices.
-
-Do not replace PostgreSQL with an in-memory database or local-only storage. Do not connect the dashboard directly to an in-process generator. Do not use hardcoded readings as production data. Do not claim that synthetic values represent actual weather.
-
-Deliver working source files, setup instructions, test results, and a clear summary of anything that remains incomplete.
+st results, and a clear summary of anything that remains incomplete.
