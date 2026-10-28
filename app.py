@@ -13,7 +13,7 @@ from database import WEATHER_LOCATION, ensure_schema, fetch_readings, get_engine
 load_dotenv()
 APP_TIMEZONE = os.getenv("APP_TIMEZONE", "Africa/Lagos")
 LOCAL_TZ = ZoneInfo(APP_TIMEZONE)
-GENERATOR_INTERVAL_SECONDS = max(10, int(os.getenv("GENERATOR_INTERVAL_SECONDS", "120")))
+GENERATOR_INTERVAL_SECONDS = max(10, int(os.getenv("GENERATOR_INTERVAL_SECONDS", "20")))
 
 st.set_page_config(page_title="Weather Monitoring & Forecasting", page_icon="🌦️", layout="wide")
 
@@ -514,7 +514,7 @@ def render_dashboard_navigation(engine):
         )
 
         st.caption(f"Current local time: {datetime.now(LOCAL_TZ).strftime('%Y-%m-%d %H:%M:%S')}")
-        auto_refresh = st.toggle("Auto-refresh every 2 minutes", value=True)
+        auto_refresh = st.toggle("Auto-refresh every 20 seconds", value=True)
         st.markdown(
             f"<div style='margin-top: 0.6rem; color: #0f172a;'><span style='font-size:1.2rem;'>⏳</span> <strong>Next refresh</strong> {get_refresh_countdown()}</div>",
             unsafe_allow_html=True,
@@ -531,7 +531,7 @@ def render_settings_panel():
     st.code(
         "DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/DBNAME\n"
         "WEATHER_LOCATION=Lagos, Nigeria\n"
-        "GENERATOR_INTERVAL_SECONDS=120\n"
+        "GENERATOR_INTERVAL_SECONDS=20\n"
         "APP_TIMEZONE=Africa/Lagos\n",
         language="text",
     )
@@ -568,7 +568,7 @@ def main():
 
     if nav == "Dashboard":
         if auto_refresh:
-            @st.fragment(run_every=120)
+            @st.fragment(run_every=20)
             def live_dashboard_fragment():
                 render_dashboard(engine, location)
 

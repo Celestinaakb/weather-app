@@ -22,7 +22,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("weather-generator")
 
-DEFAULT_INTERVAL_SECONDS = 120
+DEFAULT_INTERVAL_SECONDS = 20
 DEFAULT_TIMEZONE = "Africa/Lagos"
 
 running = True
