@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from app import compute_summary_stats, prepare_window_data
+from weather_app.dashboard import compute_summary_stats, prepare_window_data
 
 
 def test_prepare_window_data_converts_times_and_sorts_chronologically():

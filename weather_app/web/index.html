@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weather Monitor</title>
+<style>
+  :root {
+    --bg: #edf2f7; --card: #ffffff; --ink: #0f172a; --muted: #64748b; --line: #dbe3ec;
+    --accent: #2563eb; --good: #0f766e; --bad: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0b1220; --card: #131c2e; --ink: #e5ecf6; --muted: #8a9bb3; --line: #24324a; --accent: #6ea0ff; --good: #2dd4bf; --bad: #f87171; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; justify-content: space-between; margin-bottom: 16px; }
+  h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.2rem); letter-spacing: -0.03em; }
+  .sub { color: var(--muted); font-size: 0.85rem; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+  label { display: flex; flex-direction: column; gap: 2px; font-size: 0.75rem; color: var(--muted); }
+  input, select, button { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  .grid { display: grid; gap: 12px; }
+  .cards { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 12px; }
+  .charts { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); margin-bottom: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .card .label { color: var(--muted); font-size: 0.82rem; }
+  .card .value { font-size: clamp(1.5rem, 2.4vw, 2.1rem); font-weight: 800; letter-spacing: -0.03em; }
+  .card .delta { font-size: 0.8rem; font-weight: 600; color: var(--good); }
+  .card .delta.neg { color: var(--bad); }
+  .chart { min-height: 300px; padding: 6px; }
+  h2 { font-size: 1.1rem; margin: 18px 0 8px; }
+  .banner { background: #fef3c7; color: #78350f; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; display: none; }
+  .banner.show { display: block; }
+  .banner.err { background: #fee2e2; color: #7f1d1d; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--card); }
+  .scroll { max-height: 360px; overflow: auto; }
+  .stats { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Weather Monitor</h1>
+      <div class="sub" id="meta">Loading…</div>
+    </div>
+    <div class="controls">
+      <label>View
+        <select id="mode"><option value="live">Live (last 2 h)</option><option value="hist">Historical</option></select>
+      </label>
+      <label id="histBox" class="hidden">Window end (local time)
+        <input type="datetime-local" id="histEnd">
+      </label>
+      <label>Source
+        <select id="source"><option value="">All</option><option value="observed">Sensor (ESP32)</option><option value="simulated">Simulated</option></select>
+      </label>
+      <button id="refresh" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner"></div>
+
+  <section class="grid cards" id="cards"></section>
+  <section class="grid charts">
+    <div class="card chart" id="chartTemp"></div>
+    <div class="card chart" id="chartPress"></div>
+    <div class="card chart" id="chartHum"></div>
+  </section>
+
+  <h2>Summary statistics</h2>
+  <section class="grid stats" id="stats"></section>
+
+  <h2>Readings <button id="csv" type="button" style="margin-left:8px">Download CSV</button></h2>
+  <div class="card scroll"><table id="table"></table></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script>
+const REFRESH_MS = 30000;
+let cfg = { location: "", timezone: "UTC", interval_seconds: 120 };
+let rows = [];
+
+const $ = (id) => document.getElementById(id);
+const METRICS = [
+  { key: "temperature_c", label: "Temperature", unit: "°C", digits: 1, el: "chartTemp", color: "#ef4444" },
+  { key: "pressure_hpa", label: "Pressure", unit: "hPa", digits: 1, el: "chartPress", color: "#2563eb" },
+  { key: "humidity_pct", label: "Humidity", unit: "%", digits: 1, el: "chartHum", color: "#0f766e" },
+];
+
+// --- time helpers (everything is displayed in the configured timezone) ---
+function parts(date, tz) {
+  const f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return Object.fromEntries(f.formatToParts(date).map((p) => [p.type, p.value]));
+}
+function fmtLocal(date) {
+  const p = parts(date, cfg.timezone);
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+}
+// Interpret a "YYYY-MM-DDTHH:mm" wall-clock value as time in cfg.timezone and return the UTC Date.
+function wallToUtc(value) {
+  const asUtc = new Date(value + ":00Z");
+  const p = parts(asUtc, cfg.timezone);
+  const shown = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  let guess = new Date(asUtc.getTime() - (shown - asUtc.getTime()));
+  const p2 = parts(guess, cfg.timezone);   // second pass handles DST edges
+  const shown2 = Date.UTC(p2.year, p2.month - 1, p2.day, p2.hour, p2.minute, p2.second);
+  return new Date(guess.getTime() - (shown2 - asUtc.getTime()));
+}
+
+function banner(text, isError) {
+  const b = $("banner");
+  b.textContent = text || "";
+  b.classList.toggle("show", !!text);
+  b.classList.toggle("err", !!isError);
+}
+
+async function api(path, params = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v));
+  const res = await fetch(`${path}${qs.toString() ? "?" + qs : ""}`);
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+async function load() {
+  try {
+    const live = $("mode").value === "live";
+    let end = new Date();
+    if (!live) {
+      if (!$("histEnd").value) return;
+      end = wallToUtc($("histEnd").value);
+    }
+    const start = new Date(end.getTime() - 2 * 3600 * 1000);
+    rows = await api("/api/readings", {
+      location: cfg.location, start: start.toISOString(), end: end.toISOString(), source: $("source").value,
+    });
+    rows.forEach((r) => (r.t = new Date(r.observed_at)));
+    render(live);
+    banner("");
+  } catch (e) {
+    banner("Could not load readings: " + e.message, true);
+  }
+}
+
+function render(live) {
+  $("meta").textContent = `${cfg.location} · ${cfg.timezone} · updated ${fmtLocal(new Date())}`;
+  renderCards();
+  renderCharts();
+  renderStats();
+  renderTable();
+  if (!rows.length) {
+    banner(live ? "No readings in the last two hours. Is the ESP32 posting to the API?" : "No readings in the selected window.");
+  } else if (live) {
+    const age = (Date.now() - rows[rows.length - 1].t) / 1000;
+    if (age > cfg.interval_seconds * 2) banner(`Data is stale: the latest reading is ${Math.round(age)} s old.`);
+  }
+}
+
+function renderCards() {
+  const last = rows[rows.length - 1], prev = rows[rows.length - 2];
+  $("cards").innerHTML = METRICS.map((m) => {
+    if (!last) return `<div class="card"><div class="label">${m.label}</div><div class="value">—</div></div>`;
+    const d = prev ? last[m.key] - prev[m.key] : null;
+    const delta = d === null ? "No prior reading" : `${d >= 0 ? "+" : ""}${d.toFixed(m.digits)} ${m.unit}`;
+    return `<div class="card"><div class="label">${m.label}</div>
+      <div class="value">${last[m.key].toFixed(m.digits)} ${m.unit}</div>
+      <div class="delta ${d !== null && d < 0 ? "neg" : ""}">${delta}</div></div>`;
+  }).join("") + `<div class="card"><div class="label">Latest reading</div>
+      <div class="value" style="font-size:1.2rem">${last ? fmtLocal(last.t) : "—"}</div>
+      <div class="delta">${last ? last.source : ""}</div></div>`;
+}
+
+function renderCharts() {
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  const ink = dark ? "#e5ecf6" : "#0f172a", grid = dark ? "#24324a" : "#e5ecf3";
+  const x = rows.map((r) => fmtLocal(r.t));
+  METRICS.forEach((m) => {
+    Plotly.react(m.el, [{ x, y: rows.map((r) => r[m.key]), type: "scatter", mode: "lines+markers",
+      line: { color: m.color, width: 2.5 }, marker: { size: 5 } }], {
+      title: { text: `${m.label} (${m.unit})`, font: { size: 15, color: ink } },
+      margin: { l: 50, r: 16, t: 40, b: 40 }, height: 300,
+      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { color: ink },
+      xaxis: { gridcolor: grid }, yaxis: { gridcolor: grid }, hovermode: "x unified",
+    }, { displayModeBar: false, responsive: true });
+  });
+}
+
+function renderStats() {
+  if (!rows.length) { $("stats").innerHTML = ""; return; }
+  $("stats").innerHTML = METRICS.flatMap((m) => {
+    const v = rows.map((r) => r[m.key]);
+    const avg = v.reduce((a, b) => a + b, 0) / v.length;
+    return [["min", Math.min(...v)], ["max", Math.max(...v)], ["avg", avg]].map(
+      ([n, val]) => `<div class="card"><div class="label">${m.label} ${n}</div><div class="value" style="font-size:1.3rem">${val.toFixed(2)} ${m.unit}</div></div>`);
+  }).join("");
+}
+
+function renderTable() {
+  const body = rows.slice().reverse().map((r) =>
+    `<tr><td>${fmtLocal(r.t)}</td><td>${r.temperature_c.toFixed(2)}</td><td>${r.pressure_hpa.toFixed(2)}</td><td>${r.humidity_pct.toFixed(2)}</td><td>${r.source}</td></tr>`).join("");
+  $("table").innerHTML = `<thead><tr><th>Timestamp</th><th>Temperature (°C)</th><th>Pressure (hPa)</th><th>Humidity (%)</th><th>Source</th></tr></thead><tbody>${body}</tbody>`;
+}
+
+function downloadCsv() {
+  const lines = ["timestamp,temperature_c,pressure_hpa,humidity_pct,source",
+    ...rows.map((r) => [fmtLocal(r.t), r.temperature_c, r.pressure_hpa, r.humidity_pct, r.source].join(","))];
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+  a.download = "weather_readings.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function init() {
+  try {
+    cfg = await api("/api/config");
+  } catch (e) {
+    banner("Could not reach the API: " + e.message, true);
+    return;
+  }
+  const now = parts(new Date(), cfg.timezone);
+  $("histEnd").value = `${now.year}-${now.month}-${now.day}T${now.hour}:${now.minute}`;
+  $("mode").addEventListener("change", () => { $("histBox").classList.toggle("hidden", $("mode").value === "live"); load(); });
+  ["histEnd", "source"].forEach((id) => $(id).addEventListener("change", load));
+  $("refresh").addEventListener("click", load);
+  $("csv").addEventListener("click", downloadCsv);
+  await load();
+  setInterval(() => { if ($("mode").value === "live" && !document.hidden) load(); }, REFRESH_MS);
+}
+init();
+</script>
+</body>
+</html>

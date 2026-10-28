@@ -2,8 +2,8 @@ services:
   - type: worker
     name: weather-generator
     runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python weather_generator.py
+    buildCommand: uv sync --frozen --no-dev
+    startCommand: uv run --no-sync python -m weather_app.generator
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -14,12 +14,26 @@ services:
       - key: APP_TIMEZONE
         value: Africa/Lagos
   - type: web
-    name: weather-streamlit-dashboard
+    name: weather-api
     runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
+    buildCommand: uv sync --frozen --no-dev
+    startCommand: uv run --no-sync uvicorn weather_app.api:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: WEATHER_LOCATION
+        value: Lagos, Nigeria
+      - key: APP_TIMEZONE
+        value: Africa/Lagos
+  - type: web
+    name: weather-streamlit-dashboard
+    runtime: python
+    buildCommand: uv sync --frozen --no-dev
+    startCommand: uv run --no-sync python -m streamlit run weather_app/dashboard.py --server.port $PORT --server.address 0.0.0.0
+    envVars:
+      - key: API_BASE_URL
         sync: false
       - key: WEATHER_LOCATION
         value: Lagos, Nigeria
