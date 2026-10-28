@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -20,35 +21,222 @@ st.markdown(
     """
     <style>
         .stApp {
-            background-color: #f3f5f8;
+            background: #edf2f7;
+            color: #0f172a;
         }
         .block-container {
-            padding-top: 1.2rem;
-            padding-bottom: 1.5rem;
+            padding-top: 1rem;
+            padding-bottom: 2rem;
+            max-width: 1500px;
         }
-        div[data-testid="stSidebar"] {
-            background: #eef3fa;
+        [data-testid="stSidebar"] {
+            background: #eaf1f8;
+            border-right: 1px solid rgba(148, 163, 184, 0.4);
+            padding-top: 0.8rem;
         }
-        [data-testid="stMetricValue"] {
-            font-size: 1.5rem;
+        [data-testid="stSidebarNav"] {
+            gap: 0.25rem;
+        }
+        .sidebar-logo {
+            font-weight: 800;
+            font-size: 1.05rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #0f172a;
+            margin-bottom: 0.8rem;
+        }
+        .sidebar-logo small {
+            display: block;
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            text-transform: none;
+            color: #475569;
+        }
+        .nav-item {
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.7rem;
+            margin: 0.15rem 0.2rem;
+            font-weight: 500;
+            color: #334155;
+        }
+        .nav-item:hover {
+            background: rgba(148, 163, 184, 0.14);
+        }
+        .nav-item.active {
+            background: #cfe3ff;
+            color: #0f172a;
             font-weight: 600;
         }
-        .card {
-            background: white;
-            border: 1px solid #dfe6f0;
-            border-radius: 0.8rem;
-            padding: 1rem 1.1rem;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        .sidebar-status {
+            margin-top: 1.2rem;
+            padding: 0.75rem 0.5rem 0;
+            border-top: 1px solid rgba(148, 163, 184, 0.35);
+            color: #334155;
+            font-size: 0.92rem;
         }
-        .section-header {
-            color: #172554;
+        .live-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            color: #0f766e;
+            border-radius: 999px;
+            padding: 0.35rem 0.7rem;
+            font-size: 0.78rem;
             font-weight: 700;
-            letter-spacing: 0.02em;
+        }
+        .live-dot {
+            width: 0.55rem;
+            height: 0.55rem;
+            border-radius: 50%;
+            background: #10b981;
+            display: inline-block;
+        }
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin: 0.2rem 0 1.2rem 0;
+            padding: 0.2rem 0.2rem 0.9rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+        }
+        .header-title {
+            font-size: clamp(2rem, 3vw, 3rem);
+            font-weight: 800;
+            letter-spacing: -0.05em;
+            color: #0f172a;
+            margin: 0;
+        }
+        .header-subtitle {
+            color: #475569;
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+        .control-panel {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+        }
+        .field-shell {
+            background: rgba(255,255,255,0.5);
+            border: 1px solid rgba(148, 163, 184, 0.38);
+            border-radius: 0.7rem;
+            padding: 0.45rem 0.75rem;
+            min-width: 180px;
+        }
+        .compact-label {
+            font-size: 0.72rem;
+            color: #64748b;
+            margin-bottom: 0.1rem;
+            display: block;
+        }
+        .date-pill {
+            background: rgba(255,255,255,0.65);
+            border: 1px solid rgba(148,163,184,0.4);
+            border-radius: 0.65rem;
+            padding: 0.55rem 0.75rem;
+            color: #0f172a;
+            font-weight: 600;
+            min-width: 120px;
+            text-align: center;
+        }
+        .metric-card {
+            background: rgba(255,255,255,0.78);
+            border: 1px solid rgba(148,163,184,0.25);
+            border-radius: 0.9rem;
+            box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+            padding: 0.9rem 1rem;
+            min-height: 118px;
+        }
+        .metric-label {
+            color: #475569;
+            font-size: 0.82rem;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            margin-bottom: 0.6rem;
+        }
+        .metric-value {
+            font-size: clamp(1.5rem, 2vw, 2.1rem);
+            font-weight: 800;
+            letter-spacing: -0.04em;
+            color: #0f172a;
+            margin: 0.1rem 0 0.2rem;
+        }
+        .metric-delta {
+            color: #0f766e;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .metric-delta.negative {
+            color: #dc2626;
+        }
+        .chart-card {
+            background: rgba(255,255,255,0.78);
+            border: 1px solid rgba(148,163,184,0.25);
+            border-radius: 0.9rem;
+            box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+            padding: 0.7rem 0.8rem 0.2rem;
+            min-height: 310px;
+        }
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.3rem;
+            color: #0f172a;
+            font-weight: 700;
+        }
+        .chart-header .icon {
+            color: #2563eb;
+            font-size: 1.1rem;
+        }
+        .table-card {
+            background: rgba(255,255,255,0.75);
+            border: 1px solid rgba(148,163,184,0.25);
+            border-radius: 0.9rem;
+            padding: 0.8rem 0.9rem 0.3rem;
+        }
+        .section-head {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0.5rem 0 0.8rem 0;
+        }
+        .stButton > button {
+            border-radius: 0.7rem;
+            border: 1px solid rgba(148,163,184,0.35);
+            background: rgba(255,255,255,0.7);
+            color: #0f172a;
+        }
+        .stRadio > div[role="radiogroup"] {
+            gap: 0.25rem;
+        }
+        .stRadio label {
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.5rem;
+        }
+        div[data-baseweb="select"] > div {
+            border-radius: 0.6rem;
+            border: 1px solid rgba(148,163,184,0.4);
+            background: rgba(255,255,255,0.7);
+        }
+        .stDataFrame {
+            background: transparent;
         }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+
+def get_refresh_countdown() -> str:
+    remaining = GENERATOR_INTERVAL_SECONDS - int(time.monotonic() % GENERATOR_INTERVAL_SECONDS)
+    minutes, seconds = divmod(remaining, 60)
+    return f"{minutes:02d}:{seconds:02d}"
 
 
 @st.cache_resource
@@ -216,7 +404,7 @@ def render_data_table(frame: pd.DataFrame):
     table.columns = ["Timestamp", "Temperature (°C)", "Pressure (hPa)", "Humidity (%)", "Source"]
     table = table.sort_values("Timestamp", ascending=False)
 
-    st.dataframe(table, use_container_width=True, hide_index=True)
+    st.dataframe(table, width="stretch", hide_index=True)
     csv_bytes = table.to_csv(index=False).encode("utf-8")
     st.download_button(
         label="Download selected window as CSV",
@@ -262,7 +450,7 @@ def render_dashboard(engine, location: str):
         with chart_columns[idx]:
             fig = build_weather_chart(window, column, title, y_label)
             if fig is not None:
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
     render_summary_statistics(window)
     render_data_table(window)
@@ -307,7 +495,7 @@ def render_historical(engine, location: str):
         with chart_columns[idx]:
             fig = build_weather_chart(window, column, title, y_label)
             if fig is not None:
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
     render_summary_statistics(window)
     render_data_table(window)
@@ -326,15 +514,15 @@ def render_dashboard_navigation(engine):
         )
 
         st.caption(f"Current local time: {datetime.now(LOCAL_TZ).strftime('%Y-%m-%d %H:%M:%S')}")
-        if nav == "Dashboard":
-            auto_refresh = st.toggle("Auto-refresh every 2 minutes", value=True)
-            if auto_refresh:
-                st.fragment(run_every=120)
-                st.button("Refresh now", use_container_width=True)
-        else:
-            st.caption("All data is synthetic and stored in PostgreSQL.")
+        auto_refresh = st.toggle("Auto-refresh every 2 minutes", value=True)
+        st.markdown(
+            f"<div style='margin-top: 0.6rem; color: #0f172a;'><span style='font-size:1.2rem;'>⏳</span> <strong>Next refresh</strong> {get_refresh_countdown()}</div>",
+            unsafe_allow_html=True,
+        )
+        if st.button("Refresh now", width="content"):
+            st.rerun()
 
-        return location, nav
+        return location, nav, auto_refresh
 
 
 def render_settings_panel():
@@ -376,10 +564,17 @@ def main():
         st.stop()
 
     st.title("Weather Monitoring & Forecasting")
-    location, nav = render_dashboard_navigation(engine)
+    location, nav, auto_refresh = render_dashboard_navigation(engine)
 
     if nav == "Dashboard":
-        render_dashboard(engine, location)
+        if auto_refresh:
+            @st.fragment(run_every=120)
+            def live_dashboard_fragment():
+                render_dashboard(engine, location)
+
+            live_dashboard_fragment()
+        else:
+            render_dashboard(engine, location)
     elif nav == "Historical View":
         render_historical(engine, location)
     elif nav == "Forecast":
