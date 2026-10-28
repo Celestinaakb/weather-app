@@ -10,7 +10,7 @@ services:
       - key: WEATHER_LOCATION
         value: Lagos, Nigeria
       - key: GENERATOR_INTERVAL_SECONDS
-        value: "20"
+        value: "120"
       - key: APP_TIMEZONE
         value: Africa/Lagos
   - type: web

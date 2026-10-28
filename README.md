@@ -37,13 +37,13 @@ The ESP32 sketch keeps its ThingSpeak upload/control channel and additionally PO
 - `POST /api/readings` (header `X-API-Key`) body `{"temperature_c":..,"pressure_hpa":..,"humidity_pct":..}`; the server timestamps it.
 - `GET /api/readings?start=&end=&location=&source=` (default last 2 h), `GET /api/readings/latest`, `GET /api/config`, `GET /api/health`. Interactive docs at `/docs`.
 
-The table is created automatically by either process. The generator writes one record immediately, then repeats every 20 seconds by default.
+The table is created automatically by either process. The generator writes one record immediately, then repeats every two minutes by default.
 
 ## Environment variables
 
 - `DATABASE_URL`: PostgreSQL SQLAlchemy URL, e.g. `postgresql+psycopg://USER:PASSWORD@HOST:5432/DBNAME`
 - `WEATHER_LOCATION`: label used to group readings, default `Lagos, Nigeria`
-- `GENERATOR_INTERVAL_SECONDS`: default `20`
+- `GENERATOR_INTERVAL_SECONDS`: default `120`
 - `API_KEY`: shared secret the ESP32 sends in `X-API-Key`; if unset, ingest is unauthenticated (dev only)
 - `API_BASE_URL`: where Streamlit finds the API, default `http://localhost:8000`
 - `APP_TIMEZONE`: default `Africa/Lagos`

@@ -45,6 +45,7 @@ def test_process_cycle_inserts_initial_reading():
 def test_run_generator_respects_configuration_and_schedule(monkeypatch):
     engine = _sqlite_engine_stub()
     calls = []
+    clock = [0.0]
 
     def fake_process_cycle(current_engine, location, timezone_name):
         calls.append((location, timezone_name))
@@ -52,7 +53,8 @@ def test_run_generator_respects_configuration_and_schedule(monkeypatch):
 
     monkeypatch.setattr("weather_app.generator.process_cycle", fake_process_cycle)
     monkeypatch.setattr("weather_app.generator.running", True)
-    monkeypatch.setattr("weather_app.generator.time.monotonic", lambda: 0)
+    monkeypatch.setattr("weather_app.generator.time.monotonic", lambda: clock[0])
+    monkeypatch.setattr("weather_app.generator.time.sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds))
 
     run_generator(engine, interval_seconds=1, location="Lagos, Nigeria", timezone_name="Africa/Lagos", max_cycles=2)
 
@@ -93,7 +95,7 @@ def test_generator_runs_without_dashboard_dependency():
     ) as mock_run:
         import weather_app.generator as weather_generator
 
-        weather_app.generator.main()
+        weather_generator.main()
 
     mock_schema.assert_not_called()
     mock_run.assert_called_once_with(engine)

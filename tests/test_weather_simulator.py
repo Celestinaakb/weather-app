@@ -22,37 +22,22 @@ def test_generate_reading_returns_required_fields_and_bounds(field_name, min_val
     assert min_value <= value[field_name] <= max_value
 
 
-def test_generate_reading_is_seeded_and_reproducible():
+def test_generate_reading_is_seeded_and_reproducible(monkeypatch):
     timestamp = datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc)
-
-    original_seed = None
-    try:
-        import os
-        original_seed = os.environ.get("SIMULATION_SEED")
-    except Exception:
-        original_seed = None
-
     import weather_app.simulator as sim
 
-    sim._runtime_rng = None
-    sim._state = {"temperature": 29.0, "pressure": 1012.0, "humidity": 72.0}
-    sim._seed_value = 42
-    sim._rng = sim.random.Random(42)
+    initial_state = {"temperature": 29.0, "pressure": 1012.0, "humidity": 72.0}
+    monkeypatch.setattr(sim, "_state", initial_state.copy())
+    monkeypatch.setattr(sim, "_rng", sim.random.Random(42))
 
     first = sim.generate_reading(timestamp)
 
-    sim._runtime_rng = None
-    sim._state = {"temperature": 29.0, "pressure": 1012.0, "humidity": 72.0}
-    sim._seed_value = 42
-    sim._rng = sim.random.Random(42)
+    monkeypatch.setattr(sim, "_state", initial_state.copy())
+    monkeypatch.setattr(sim, "_rng", sim.random.Random(42))
 
     second = sim.generate_reading(timestamp)
 
     assert first == second
-
-    if original_seed is not None:
-        import os
-        os.environ["SIMULATION_SEED"] = str(original_seed)
 
 
 def test_generate_reading_changes_across_daylight_periods():

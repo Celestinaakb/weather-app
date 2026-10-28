@@ -22,7 +22,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("weather-generator")
 
-DEFAULT_INTERVAL_SECONDS = 20
+DEFAULT_INTERVAL_SECONDS = 120
 DEFAULT_TIMEZONE = "Africa/Lagos"
 
 running = True
@@ -57,7 +57,14 @@ def process_cycle(engine, location: Optional[str] = None, timezone_name: Optiona
     values = generate_reading(observed_at, timezone_value)
 
     try:
-        inserted = insert_reading(engine, observed_at, location_name, **values)
+        inserted = insert_reading(
+            engine,
+            observed_at,
+            location_name,
+            values["temperature_c"],
+            values["pressure_hpa"],
+            values["humidity_pct"],
+        )
     except Exception:
         log.exception("Database insert failed; will retry on the next scheduled cycle.")
         return False

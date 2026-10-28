@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 import pandas as pd
 import requests
@@ -34,8 +35,11 @@ def check_health() -> None:
     _get("/api/health")
 
 
-def get_config() -> dict:
-    return _get("/api/config")
+def get_config() -> dict[str, Any]:
+    config = _get("/api/config")
+    if not isinstance(config, dict):
+        raise ApiError("Weather API returned an invalid configuration response.")
+    return config
 
 
 def fetch_readings(location: str, start, end) -> pd.DataFrame:
