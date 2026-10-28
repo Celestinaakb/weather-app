@@ -5,43 +5,57 @@ A cloud-ready Python project that simulates weather readings, stores them in Pos
 **Important:** Initial values are synthetic. This is a monitoring/data-pipeline prototype, not real weather or a validated forecasting model.
 
 ## Architecture
-- `weather_simulator.py`: creates gradual synthetic temperature, pressure, and humidity values.
-- `weather_generator.py`: standalone process; writes a reading immediately and then every 120 seconds.
-- `database.py`: PostgreSQL connection, schema setup, insert and query helpers.
-- `app.py`: Streamlit dashboard, three time-series charts, live refresh, date/time historical navigation.
-- `sql/schema.sql`: database schema.
+```
+weather_app/
+  api.py          FastAPI server: ESP32 posts readings here; serves the HTML dashboard at /
+  api_client.py   HTTP client used by Streamlit
+  dashboard.py    Streamlit dashboard (talks to the API, not the database)
+  web/index.html  plain-HTML dashboard (Plotly, no build step)
+  database.py     PostgreSQL connection, schema setup, insert and query helpers
+  generator.py    standalone synthetic-data process (reading now, then every 120 s)
+  simulator.py    gradual synthetic temperature, pressure and humidity values
+sql/schema.sql    database schema
+tests/
+```
+Run everything from the repository root.
 
 ## Run locally
-Requires Python 3.11+ and PostgreSQL.
+Requires Python 3.13+ and PostgreSQL.
 
 1. Create a PostgreSQL database named `weatherdb`.
-2. Create a virtual environment and install packages:
-   ```bash
-   python -m venv .venv
-   # Windows PowerShell: .venv\Scripts\Activate.ps1
-   # macOS/Linux: source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
+2. Install dependencies with [uv](https://docs.astral.sh/uv/): `uv sync`
 3. Copy `.env.example` to `.env` and set your database URL.
-4. In terminal 1 run `python weather_generator.py`.
-5. In terminal 2 run `streamlit run app.py`.
+4. Run the API: `uv run uvicorn weather_app.api:app --host 0.0.0.0 --port 8000` (`--host 0.0.0.0` lets the ESP32 reach it over the LAN).
+5. Open either dashboard:
+   - HTML: http://localhost:8000/
+   - Streamlit: `uv run python -m streamlit run weather_app/dashboard.py` (uses `API_BASE_URL`, default `http://localhost:8000`)
+6. Optional, for synthetic data: `uv run python -m weather_app.generator`.
+
+The ESP32 sketch keeps its ThingSpeak upload/control channel and additionally POSTs each reading to `API_BASE_URL/api/readings`. Set `API_BASE_URL` and `API_KEY` in the sketch.
+
+### API
+- `POST /api/readings` (header `X-API-Key`) body `{"temperature_c":..,"pressure_hpa":..,"humidity_pct":..}`; the server timestamps it.
+- `GET /api/readings?start=&end=&location=&source=` (default last 2 h), `GET /api/readings/latest`, `GET /api/config`, `GET /api/health`. Interactive docs at `/docs`.
 
 The table is created automatically by either process. The generator writes one record immediately, then repeats every two minutes.
 
 ## Environment variables
 - `DATABASE_URL`: PostgreSQL SQLAlchemy URL, e.g. `postgresql+psycopg://USER:PASSWORD@HOST:5432/DBNAME`
 - `WEATHER_LOCATION`: label used to group readings, default `Lagos, Nigeria`
+- `API_KEY`: shared secret the ESP32 sends in `X-API-Key`; if unset, ingest is unauthenticated (dev only)
+- `API_BASE_URL`: where Streamlit finds the API, default `http://localhost:8000`
 - `GENERATOR_INTERVAL_SECONDS`: default `120`
 - `APP_TIMEZONE`: default `Africa/Lagos`
 - `SIMULATION_SEED`: optional integer for repeatable synthetic values
 
 ## Cloud deployment
-Deploy three resources:
+Deploy four resources (the build step on each is `uv sync --frozen --no-dev`, using the committed `uv.lock`):
 1. Managed PostgreSQL database.
-2. One always-on background worker running `python weather_generator.py`.
-3. Streamlit web service running `streamlit run app.py --server.port $PORT --server.address 0.0.0.0`.
+2. API web service running `uv run --no-sync uvicorn weather_app.api:app --host 0.0.0.0 --port $PORT`.
+3. One always-on background worker running `uv run --no-sync python -m weather_app.generator`.
+4. Streamlit web service running `uv run --no-sync python -m streamlit run weather_app/dashboard.py --server.port $PORT --server.address 0.0.0.0`.
 
-Set `DATABASE_URL`, `WEATHER_LOCATION`, and `APP_TIMEZONE` for both services. Keep credentials in platform environment variables, never commit `.env`. Use the provider's private database URL when supported. The `render.yaml` file is a starting point for platforms supporting Render Blueprints; provision/configure PostgreSQL separately as required by your host.
+Set `DATABASE_URL` (and `API_KEY`) on the API and generator, and `API_BASE_URL` (the API's public URL) on Streamlit; `WEATHER_LOCATION` and `APP_TIMEZONE` go on all of them. Keep credentials in platform environment variables, never commit `.env`. Use the provider's private database URL when supported. The `render.yaml` file is a starting point for platforms supporting Render Blueprints; provision/configure PostgreSQL separately as required by your host.
 
 **Only run one generator worker.** Multiple replicas would generate overlapping records. A unique constraint on `(location, observed_at)` prevents exact duplicate timestamps, but it does not replace single-worker deployment.
 

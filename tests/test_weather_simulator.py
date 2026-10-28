@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import pytest
 from zoneinfo import ZoneInfo
 
-from weather_simulator import generate_reading
+from weather_app.simulator import generate_reading
 
 
 @pytest.mark.parametrize(
@@ -32,7 +32,7 @@ def test_generate_reading_is_seeded_and_reproducible():
     except Exception:
         original_seed = None
 
-    import weather_simulator as sim
+    import weather_app.simulator as sim
 
     sim._runtime_rng = None
     sim._state = {"temperature": 29.0, "pressure": 1012.0, "humidity": 72.0}

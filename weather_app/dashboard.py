@@ -8,9 +8,10 @@ import plotly.express as px
 import streamlit as st
 from dotenv import load_dotenv
 
-from database import WEATHER_LOCATION, ensure_schema, fetch_readings, get_engine, latest_reading
+from weather_app import api_client
 
 load_dotenv()
+WEATHER_LOCATION = os.getenv("WEATHER_LOCATION", "Lagos, Nigeria").strip()
 APP_TIMEZONE = os.getenv("APP_TIMEZONE", "Africa/Lagos")
 LOCAL_TZ = ZoneInfo(APP_TIMEZONE)
 GENERATOR_INTERVAL_SECONDS = max(10, int(os.getenv("GENERATOR_INTERVAL_SECONDS", "120")))
@@ -239,11 +240,17 @@ def get_refresh_countdown() -> str:
     return f"{minutes:02d}:{seconds:02d}"
 
 
-@st.cache_resource
+def fetch_readings(_api, location, start, end):
+    return api_client.fetch_readings(location, start, end)
+
+
+def latest_reading(_api, location):
+    return api_client.latest_reading(location)
+
+
 def connect_db():
-    engine = get_engine()
-    ensure_schema(engine)
-    return engine
+    api_client.check_health()
+    return api_client
 
 
 def prepare_window_data(frame: pd.DataFrame) -> pd.DataFrame:
@@ -423,7 +430,7 @@ def render_dashboard(engine, location: str):
     if df.empty:
         latest = latest_reading(engine, location)
         st.warning(
-            "No readings are available for the last two hours. Confirm the generator is running and writing to the same PostgreSQL database."
+            "No readings are available for the last two hours. Confirm the ESP32 (or the generator) is posting readings to the API."
         )
         if latest:
             st.caption(f"Latest stored reading: {latest['observed_at']}")
@@ -527,9 +534,9 @@ def render_dashboard_navigation(engine):
 
 def render_settings_panel():
     st.header("Settings")
-    st.info("The generator runs as a separate background worker. Streamlit only queries PostgreSQL.")
+    st.info("Streamlit only talks to the FastAPI server; the API owns the PostgreSQL connection and receives ESP32 readings.")
     st.code(
-        "DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/DBNAME\n"
+        f"API_BASE_URL={api_client.API_BASE_URL}\n"
         "WEATHER_LOCATION=Lagos, Nigeria\n"
         "GENERATOR_INTERVAL_SECONDS=120\n"
         "APP_TIMEZONE=Africa/Lagos\n",
@@ -559,7 +566,7 @@ def main():
     try:
         engine = connect_db()
     except Exception as exc:
-        st.error("Could not connect to PostgreSQL. Configure DATABASE_URL in environment variables before starting the dashboard.")
+        st.error("Could not reach the weather API. Start it with `uvicorn weather_app.api:app` and set API_BASE_URL if it is not on localhost:8000.")
         st.exception(exc)
         st.stop()
 

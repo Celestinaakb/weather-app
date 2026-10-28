@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import create_engine, text
 
-from database import ensure_schema, fetch_readings, get_engine, insert_reading, latest_reading
+from weather_app.database import ensure_schema, fetch_readings, get_engine, insert_reading, latest_reading
 
 
 @pytest.fixture

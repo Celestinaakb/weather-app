@@ -11,8 +11,8 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
-from database import ensure_schema, get_engine, insert_reading
-from weather_simulator import generate_reading
+from weather_app.database import ensure_schema, get_engine, insert_reading
+from weather_app.simulator import generate_reading
 
 load_dotenv()
 
@@ -44,7 +44,7 @@ def get_timezone_name() -> str:
 
 
 def get_location_name() -> str:
-    from database import WEATHER_LOCATION
+    from weather_app.database import WEATHER_LOCATION
 
     value = os.getenv("WEATHER_LOCATION", WEATHER_LOCATION).strip() or WEATHER_LOCATION
     return value
